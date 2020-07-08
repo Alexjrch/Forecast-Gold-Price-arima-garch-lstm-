@@ -1,20 +1,24 @@
+%% Should load historical gold price data first as a one column variable, eg'price'
+%% Should install the econometrics package first
+
 %% ARIMA-GARCH
-diffprice = diff(price);
-figure;
+diffprice = diff(price);	% first difference of gold price ==> make it stationary
+figure;				% ACF and PACF ==> determine the potential AR and MA lags orders
 subplot(2,1,1);
 autocorr(diffprice);
 subplot(2,1,2)
 parcorr(diffprice);
 
-%%
-arimatrain = diffprice(1:end);
-VarMdl = garch(1,1);
-Mdl = arima('MALags',1,'ARLags',1,'Constant',0,'Variance',VarMdl);
-EstMdl = estimate(Mdl,arimatrain);
+%% Forecast with bulit in forecast() function
+arimatrain = diffprice(1:end);						% optionaol, make a training set
+VarMdl = garch(1,1);							% specification of GARCH(1,1) as variance model
+Mdl = arima('MALags',1,'ARLags',1,'Constant',0,'Variance',VarMdl);	% specification of ARMA(1,1) as mean model
+EstMdl = estimate(Mdl,arimatrain);					% estimate ARIMA(1,0,1)-GARCH(1,1) on training set
 summarize(EstMdl);
-[Y,YMSE] = forecast(EstMdl,5,diffprice);
+[Y,YMSE] = forecast(EstMdl,5,diffprice);				% forecast next 5 time steps
 [res,~,logL] = infer(EstMdl,diffprice);
-%%
+
+%% Forecast with one step ahead manually
 arimatrain = diffprice(1:end);
 VarMdl = garch(1,1);
 Mdl = arima('ARLags',1,'MALags',1,'Constant',0,'Variance',VarMdl);
@@ -23,7 +27,7 @@ summarize(EstMdl);
 [Y,YMSE] = forecast(EstMdl,5,diffprice);
 [res,~,logL] = infer(EstMdl,diffprice);
 
-figure;
+figure;			% disgonstic ==> residual plots
 subplot(2,2,1);
 plot(res);
 title('Residuals');
@@ -36,7 +40,7 @@ subplot(2,2,4);
 parcorr(res);
 
 %%
-forecastprice = [price(end);0;0;0;0;0];
+forecastprice = [price(end);0;0;0;0;0];			% one step ahead forecast
 for i = 2:length(Y)
     forecastprice(i) = forecastprice(i-1) + Y(i-1);
     forecastprice(i)
@@ -44,7 +48,7 @@ for i = 2:length(Y)
 end
 
 %%
-lower = Y - 1.96*sqrt(YMSE);
+lower = Y - 1.96*sqrt(YMSE);				% 95% CI for forecasted value
 upper = Y + 1.96*sqrt(YMSE);
 figure
 plot(diffprice,'Color',[.7,.7,.7]);
@@ -57,33 +61,35 @@ legend([h1 h2],'95% Interval','Forecast',...
 title('Gold Price Forecast')
 hold off
 
-%% LSTM
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% LSTM (univariate)
 gprice = price';
 %%
-numTimeStepsTrain = floor(0.8*numel(gprice));
+numTimeStepsTrain = floor(0.8*numel(gprice));	% split training and test set
 
-dataTrain = gprice(1:numTimeStepsTrain+1);
+dataTrain = gprice(1:numTimeStepsTrain+1);		
 dataTest = gprice(numTimeStepsTrain+1:end);
 
 mu = mean(dataTrain);
 sig = std(dataTrain);
 
-dataTrainStandardized = (dataTrain - mu) / sig;
+dataTrainStandardized = (dataTrain - mu) / sig;	% standardlization of original data
 
 XTrain = dataTrainStandardized(1:end-1);
 YTrain = dataTrainStandardized(2:end);
 
-numFeatures = 1;
-numResponses = 1;
-numHiddenUnits = 150;
+numFeatures = 1;		% univaraite ==> 1 feature
+numResponses = 1;		% univariate ==> 1 response
+numHiddenUnits = 150;		% num of units ==> 150 (giving best predictions in this project)
 
-layers = [ ...
+layers = [ ...					% construct LSTM layers
     sequenceInputLayer(numFeatures)
     lstmLayer(numHiddenUnits)
     fullyConnectedLayer(numResponses)
     regressionLayer];
 
-options = trainingOptions('adam', ...
+options = trainingOptions('adam', ...		% setting the networks
     'MaxEpochs',250, ...
     'GradientThreshold',1, ...
     'InitialLearnRate',0.005, ...
@@ -93,13 +99,13 @@ options = trainingOptions('adam', ...
     'Verbose',0, ...
     'Plots','training-progress');
 
-net = trainNetwork(XTrain,YTrain,layers,options);
+net = trainNetwork(XTrain,YTrain,layers,options);	% training
 
 %%
-dataTestStandardized = (dataTest - mu) / sig;
+dataTestStandardized = (dataTest - mu) / sig;		% standardlization of test set
 XTest = dataTestStandardized(1:end-1);
 
-net = predictAndUpdateState(net,XTrain);
+net = predictAndUpdateState(net,XTrain);		% predict on test set
 [net,YPred] = predictAndUpdateState(net,YTrain(end));
 
 numTimeStepsTest = numel(XTest);
