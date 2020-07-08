@@ -1,0 +1,50 @@
+
+```{r}
+goldcad <- read.csv("~/Desktop/661paper/Book1.csv")
+```
+
+```{r}
+# Most basic bubble plot
+p1 <- ggplot(goldcad, aes(x=as.Date(time), y=as.ts(price))) +
+  geom_line() + 
+  xlab("")+
+  ylab('Gold Price (CAD/Oz)')+
+  scale_x_date(date_labels = "%m-%Y")+
+  theme_test()
+p1
+```
+
+
+```{r}
+adf.test(goldcad$price)
+adf.test(diff(goldcad$price))
+adf.test(log(goldcad$price))
+```
+
+```{r}
+diffprice = diff(goldcad$price)
+summary(diffprice)
+describe(diffprice)
+describe(goldcad$price)
+describe(log(goldcad$price))
+```
+
+```{r}
+p1 <- ggplot(data=goldcad,aes(x=as.Date(time), y=as.ts(diff(price)))) +
+  geom_line() + 
+  xlab("")+
+  ylab('Gold Price (CAD/Oz)')+
+  scale_x_date(date_labels = "%m-%Y")+
+  theme_test()
+p1
+```
+
+```{r}
+fit <- nnetar(goldcad$price, lambda=NULL)
+autoplot(forecast(fit,h=50))
+```
+
+```{r}
+
+```
+
